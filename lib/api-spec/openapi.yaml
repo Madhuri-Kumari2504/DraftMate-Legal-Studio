@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: draftmate
+    description: DraftMate drafting, review, skills, and citation workflows
 paths:
   /healthz:
     get:
@@ -24,6 +26,163 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /draftmate/skills:
+    get:
+      operationId: listDraftmateSkills
+      tags: [draftmate]
+      summary: List available legal skills
+      responses:
+        "200":
+          description: Available drafting and review skills
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftmateSkillsResponse"
+  /draftmate/generate:
+    post:
+      operationId: generateDraftmateDraft
+      tags: [draftmate]
+      summary: Generate a working legal draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftmateGenerationInput"
+      responses:
+        "200":
+          description: Generated draft with limitations and evidence checks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftmateGeneration"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Selected text exceeds the context limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: AI provider declined the request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: AI provider or response-processing failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: AI request timed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI provider is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /draftmate/review:
+    post:
+      operationId: reviewDraftmateContract
+      tags: [draftmate]
+      summary: Review a contract and prepare a revised working draft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftmateReviewInput"
+      responses:
+        "200":
+          description: Review findings, proposed changes, and citation checks
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftmateReviewResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "413":
+          description: Selected text exceeds the context limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Request limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "422":
+          description: AI provider declined the request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "502":
+          description: AI provider or response-processing failure
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "504":
+          description: AI request timed out
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: AI provider is not configured
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /draftmate/verify-citations:
+    post:
+      operationId: verifyDraftmateCitations
+      tags: [draftmate]
+      summary: Compare citations against materials supplied by the user
+      description: This endpoint does not search external legal sources or establish that a citation is current or applicable.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DraftmateCitationVerificationInput"
+      responses:
+        "200":
+          description: Citation matches within the supplied materials
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DraftmateCitationVerificationResult"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +192,235 @@ components:
           type: string
       required:
         - status
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]
+    DraftmateSkillId:
+      type: string
+      enum:
+        - agreement-drafting
+        - legal-notice
+        - petition
+        - contract-review
+        - redlining
+        - legal-research
+        - document-summary
+        - case-analysis
+        - due-diligence
+    DraftmateModelId:
+      type: string
+      enum:
+        - gpt-6.1-sol
+        - gpt-6-luna
+        - gpt-6-astra
+    DraftmateSkill:
+      type: object
+      properties:
+        id:
+          $ref: "#/components/schemas/DraftmateSkillId"
+        label:
+          type: string
+        category:
+          type: string
+        description:
+          type: string
+      required: [id, label, category, description]
+    DraftmateSkillsResponse:
+      type: array
+      items:
+        $ref: "#/components/schemas/DraftmateSkill"
+    DraftmateSupportingMaterial:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        text:
+          type: string
+          minLength: 1
+          maxLength: 20000
+        sourceUrl:
+          type: [string, "null"]
+          format: uri
+          maxLength: 2000
+      required: [name, text]
+    DraftmateCitationStatus:
+      type: string
+      enum:
+        - matched_in_provided_material
+        - not_found_in_provided_material
+        - not_checked
+    DraftmateCitationCheck:
+      type: object
+      properties:
+        citation:
+          type: string
+        status:
+          $ref: "#/components/schemas/DraftmateCitationStatus"
+        sourceName:
+          type: [string, "null"]
+        matchedExcerpt:
+          type: [string, "null"]
+        sourceUrl:
+          type: [string, "null"]
+        note:
+          type: string
+      required: [citation, status, sourceName, matchedExcerpt, sourceUrl, note]
+    DraftmateGenerationInput:
+      type: object
+      properties:
+        skill:
+          $ref: "#/components/schemas/DraftmateSkillId"
+        instruction:
+          type: string
+          minLength: 1
+          maxLength: 6000
+        jurisdiction:
+          type: string
+          maxLength: 300
+        model:
+          $ref: "#/components/schemas/DraftmateModelId"
+        styleGuide:
+          type: string
+          maxLength: 12000
+        referenceMaterials:
+          type: array
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/DraftmateSupportingMaterial"
+      required: [skill, instruction, model]
+    DraftmateGeneration:
+      type: object
+      properties:
+        title:
+          type: string
+        draft:
+          type: string
+        caveats:
+          type: array
+          items:
+            type: string
+        citationChecks:
+          type: array
+          items:
+            $ref: "#/components/schemas/DraftmateCitationCheck"
+      required: [title, draft, caveats, citationChecks]
+    DraftmateReviewInput:
+      type: object
+      properties:
+        contractText:
+          type: string
+          minLength: 20
+          maxLength: 100000
+        instruction:
+          type: string
+          maxLength: 6000
+        jurisdiction:
+          type: string
+          maxLength: 300
+        comparisonAgreementText:
+          type: string
+          maxLength: 40000
+        model:
+          $ref: "#/components/schemas/DraftmateModelId"
+        supportingMaterials:
+          type: array
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/DraftmateSupportingMaterial"
+      required: [contractText, model]
+    DraftmateFindingSeverity:
+      type: string
+      enum: [high, medium, low]
+    DraftmateFinding:
+      type: object
+      properties:
+        id:
+          type: string
+        clause:
+          type: string
+        severity:
+          $ref: "#/components/schemas/DraftmateFindingSeverity"
+        excerpt:
+          type: string
+        observation:
+          type: string
+        concern:
+          type: string
+        missingInformation:
+          type: string
+        suggestedChange:
+          type: string
+      required: [id, clause, severity, excerpt, observation, concern, missingInformation, suggestedChange]
+    DraftmateRevisionChange:
+      type: object
+      properties:
+        clause:
+          type: string
+        before:
+          type: string
+        after:
+          type: string
+        reason:
+          type: string
+        relatedFindingId:
+          type: [string, "null"]
+      required: [clause, before, after, reason, relatedFindingId]
+    DraftmateReviewResult:
+      type: object
+      properties:
+        title:
+          type: string
+        overview:
+          type: string
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/DraftmateFinding"
+        revisedDraft:
+          type: string
+        changes:
+          type: array
+          items:
+            $ref: "#/components/schemas/DraftmateRevisionChange"
+        citationChecks:
+          type: array
+          items:
+            $ref: "#/components/schemas/DraftmateCitationCheck"
+        assumptions:
+          type: array
+          items:
+            type: string
+      required: [title, overview, findings, revisedDraft, changes, citationChecks, assumptions]
+    DraftmateCitationVerificationInput:
+      type: object
+      properties:
+        citations:
+          type: array
+          minItems: 1
+          maxItems: 40
+          items:
+            type: string
+            minLength: 1
+            maxLength: 500
+        supportingMaterials:
+          type: array
+          maxItems: 8
+          items:
+            $ref: "#/components/schemas/DraftmateSupportingMaterial"
+      required: [citations, supportingMaterials]
+    DraftmateCitationVerificationResult:
+      type: object
+      properties:
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/DraftmateCitationCheck"
+        scopeNote:
+          type: string
+      required: [checks, scopeNote]
 
